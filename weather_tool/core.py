@@ -350,8 +350,7 @@ def get_weather(city_name: str):
         "code": 0,
         "msg": "",
         "items": ret,
-        "summarys": summarys,
-        "_schema": schema
+        "summarys": summarys
     }
 
 
