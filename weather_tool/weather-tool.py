@@ -304,7 +304,7 @@ def resolve_week_detail(city_detail, summarys):
     return ret
 
 
-def weather_tool(city_name: str):
+def get_weather(city_name: str):
     target_city = next(filter(lambda item: item.text==city_name, get_cities(home)))
     if target_city is None:
         return {
@@ -359,5 +359,5 @@ if __name__ == '__main__':
 
     # print(list(extract_pattern('123131jjjj1213i333i1', '\d+', single=False)))
     # resolve_week_summary(get_home(build_city_url(target_city)))
-    print(json.dumps(weather_tool(target_city_name), indent=2, \
+    print(json.dumps(get_weather(target_city_name), indent=2, \
           ensure_ascii=False))

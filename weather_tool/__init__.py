@@ -1,4 +1,4 @@
-from weather_tool import weather_tool as w_tool
+from weather_tool import get_weather as w_tool
 
 
 def get_weather(city_name: str):
