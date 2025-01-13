@@ -270,6 +270,7 @@ def resolve_week_detail(city_detail, summarys):
             for td_index, td_item in enumerate(td_items[1:]):
                 td_text = td_item.get_text().strip()
                 td_value = title[1](td_text) if title[1] else td_text
+                weather_item = {}
                 if last_index + td_index >= len(ret):
                     # 判断时间是否是最新的时间
                     # 这里是时间参数
@@ -281,10 +282,12 @@ def resolve_week_detail(city_detail, summarys):
                         if index + delta >= len(summarys):
                             continue
                         date = summarys[index + delta]['date']
+                        weather_item['timeAlias'] = \
+                            [f"{date_alias_item} {td_value}" for date_alias_item in summarys[index + delta]['dateAlias']]
+
                         td_value = f"{date} {td_value}"
-                    ret.append({
-                        title[0]: td_value
-                    })
+                    weather_item[title[0]] = td_value
+                    ret.append(weather_item)
                 else:
                     ret[last_index + td_index][title[0]] = td_value
         tr_items = None
