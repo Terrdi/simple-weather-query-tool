@@ -306,7 +306,12 @@ def resolve_week_detail(city_detail, summarys):
 
 def get_weather(city_name: str):
     home = get_home(home_url)
-    target_city = next(filter(lambda item: item.text==city_name, get_cities(home)))
+    city_name = extract_pattern(city_name, "[\u4e00-\u9fa5]+")
+    try:
+        target_city = next(filter(lambda item: item.text==city_name, get_cities(home)))
+    except RuntimeError as e:
+        print(e.get_msg())
+        target_city = None
     if target_city is None:
         return {
             "code": -1,
@@ -353,7 +358,7 @@ def get_weather(city_name: str):
 if __name__ == '__main__':
     home = get_home(home_url)
 
-    target_city_name = '北京'
+    target_city_name = '北京(Beijing)'
     # target_city = next(filter(lambda item: item.text==target_city_name, get_cities(home)))
     # print(target_city, target_city['href'], resolve_city_id(target_city), build_city_url(target_city))
     # print(get_now_weather(resolve_city_id(target_city)))
