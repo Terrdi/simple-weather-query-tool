@@ -1,5 +1,11 @@
 from setuptools import setup, find_packages
 
+# 从 requirements.txt 中读取依赖
+def read_requirements(file_name):
+    with open(file_name, 'r') as f:
+        return [line.strip() for line in f.readlines() if line and not line.startswith('#')]
+
+
 setup(name='weather_tool',
       version='0.1',
       description='the simple tool to query weather',
@@ -13,5 +19,6 @@ setup(name='weather_tool',
       author_email='675464934@qq.com',
       license='MIT',
       packages=find_packages(),
+      install_requires=read_requirements('requirements.txt'),
       zip_safe=True
 )
