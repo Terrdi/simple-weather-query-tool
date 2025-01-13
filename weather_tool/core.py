@@ -305,6 +305,7 @@ def resolve_week_detail(city_detail, summarys):
 
 
 def get_weather(city_name: str):
+    home = get_home(home_url)
     target_city = next(filter(lambda item: item.text==city_name, get_cities(home)))
     if target_city is None:
         return {
