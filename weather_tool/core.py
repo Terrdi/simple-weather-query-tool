@@ -210,7 +210,7 @@ def extract_pattern(text:str, pattern, single=True, dictable=False):
         return next(ret).group(0) if single else map(lambda x: x.group(0), ret)
 
 def extract_number(text:str, single=True):
-    return extract_pattern(text, re.compile('\-?\d+(?:\.\d+)?'))
+    return float(extract_pattern(text, re.compile('\-?\d+(?:\.\d+)?')))
 
 
 def resolve_week_summary(city_detail):
@@ -329,7 +329,7 @@ def get_weather(city_name: str):
     ret.append({
         "time": now_weather.get('lastUpdate', datetime.datetime.now().\
                     strftime('%Y/%m/%d %H:%M')),
-        "timeAlias": ["当前", "现在"],
+        "timeAlias": ["当前", "现在", "current", "now"],
         "humidity": now_weather.get('now').get('humidity'),
         "precipitation": now_weather.get('now').get('precipitation'),
         "pressure": now_weather.get('now').get('pressure'),
@@ -365,5 +365,18 @@ if __name__ == '__main__':
 
     # print(list(extract_pattern('123131jjjj1213i333i1', '\d+', single=False)))
     # resolve_week_summary(get_home(build_city_url(target_city)))
-    print(json.dumps(get_weather(target_city_name), indent=2, \
-          ensure_ascii=False))
+    ret = json.dumps(get_weather(target_city_name), indent=2, \
+          ensure_ascii=False)
+    from jsonschema import Draft7Validator, exceptions
+    print(ret)
+    # 使用 Draft7Validator 校验数据
+    try:
+        # 创建 Draft7Validator 对象
+        validator = Draft7Validator(schema)
+
+        # 校验 JSON 数据
+        # validator.validate(ret)
+        validator.validate(get_weather(target_city_name))
+        print("数据符合 JSON Schema！")
+    except exceptions.ValidationError as e:
+        print(f"校验失败: {e.message}")
