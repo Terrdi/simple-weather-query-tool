@@ -18,7 +18,8 @@ headers={
     'Sec-Fetch-Mode': 'navigate',
     'Sec-Fetch-Site': 'cross-site',
     'Sec-Fetch-User': '?1',
-    'Upgrade-Insecure-Requests': '1'
+    'Upgrade-Insecure-Requests': '1',
+    'Referer': 'https://www.weather.com.cn/'
 }
 
 schema = {
@@ -178,22 +179,164 @@ def build_city_url(city_item):
         else urllib.parse.urljoin(home_url, sub_url)
 
 
-def resolve_city_id(city):
-    if isinstance(city, element.Tag):
-        city = city['href']
-    if isinstance(city, str):
-        return re.split('\D+', city.rstrip('/').split('/')[-1], 1)[0]
-    else:
-        return None
+def compare_ref(reference, city):
+    """
+    返回当前city与reference的匹配程度
+    """
+    words = reference.split('~')
+    matched = 0
+    for word in words:
+        if word.lower() == city.lower():
+            matched+=1
+    return matched
+
+
+def resolve_city_id(city: str):
+    # 获取到当前时间戳
+    timestamp = round(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
+    # print("当前时间戳:", timestamp)
+    target_url = f"https://toy1.weather.com.cn/search?cityname={city}&_={timestamp}&callback=success_jsonpCallback"
+    response = requests.get(target_url, headers=headers)
+    response.raise_for_status()
+    response_text = response.text
+    # 从中提取出调用的参数
+    result_text = extract_pattern(response_text, r'[\w_]*\((\[.+\])\)', group_index=1)
+    results = json.loads(result_text)
+    # 从results找到匹配程度最高的一组数据
+    current_matched = 0
+    current_ref = None
+    for result in results:
+        matched = compare_ref(result.get('ref'), city)
+        if matched >= current_matched:
+            current_matched = matched
+            current_ref = result.get('ref')
+    if current_ref is None:
+        raise ValueError(f"找不到城市: {city}")
+    return current_ref.split('~')[0]
+
 
 def get_now_weather(city_id):
-    response = json.loads(requests.get(build_city_url(f"/api/now/{city_id}"),
-            headers=headers).text)
-    return response.get('data')
+    target_url = f'https://www.weather.com.cn/weather1d/{city_id}.shtml#input'
+    home = requests.get(target_url, headers=headers)
+    home.raise_for_status()
+    home.encoding = 'utf-8'
+    soup = BeautifulSoup(home.text, "html.parser")
+    today_weather = soup.find(id='today')
+    day_and_night = today_weather.find(class_='clearfix')
+    day_and_night = day_and_night.find_all('li', recursive=False)
+    day = day_and_night[0]
+    night = day_and_night[1]
+    day_description = day.find('p', class_='wea').text
+    night_description = night.find('p', class_='wea').text
+    max_temperature = day.find('p', class_='tem').find('span').text
+    min_temperature = night.find('p', class_='tem').find('span').text
+    day_wind = day.find('p', class_='win')
+    day_wind_scale = day_wind.find('span').text
+    day_wind_direction = day_wind.find('span').get('title')
+    night_wind = night.find('p', class_='win')
+    night_wind_scale = night_wind.find('span').text
+    night_wind_direction = night_wind.find('span').get('title')
+
+    target_url = f'https://d1.weather.com.cn/sk_2d/{city_id}.html'
+    home = requests.get(target_url, headers=headers)
+    home.raise_for_status()
+    home.encoding = 'utf-8'
+    result = extract_pattern(home.text, r'var\s+dataSK\s*=\s*({.*?})\s*;?', group_index=1)
+    result = json.loads(result)
+    result['dayDescription'] = day_description
+    result['nightDescription'] = night_description
+    result['maxTemperature'] = max_temperature
+    result['minTemperature'] = min_temperature
+    result['dayWindScale'] = day_wind_scale
+    result['dayWindDirection'] = day_wind_direction
+    result['nightWindDirection'] = night_wind_direction
+    result['nightWindScale'] = night_wind_scale
+    result.update({'temperature': result['temp']})
+    result.update({'humidity': result['sd']})
+    return result
+
+
+def get_n_weather(city, n=1):
+    uri = 'weather'
+    index = n
+    if 0 < n <= 7:
+        uri = 'weather'
+    elif n <= 15:
+        uri = 'weather15d'
+        index = n - 7
+    elif n <= 40:
+        return get_large_n_weather(city, n=n)
+    else:
+        raise ValueError(f"无法获取到指定的天数 {n} 之后的天气")
+    city_id = resolve_city_id(city)
+    target_url = f"https://www.weather.com.cn/{uri}/{city_id}.shtml"
+    home = requests.get(target_url, headers=headers)
+    home.raise_for_status()
+    home.encoding = 'utf-8'
+    soup = BeautifulSoup(home.text, "html.parser")
+    weathers = soup.find('ul', class_='t clearfix')
+    weather_list = weathers.find_all('li', recursive=False)
+    target_weather = weather_list[index]
+    # print(target_weather)
+    description = target_weather.find(class_='wea').text
+    win = target_weather.find(class_='win')
+    if win is None:
+        day_wind_direction = night_wind_direction = target_weather.find(class_='wind').text
+        wind_scale = target_weather.find(class_='wind1').text
+    else:
+        spans = target_weather.find_all('span')
+        day_wind_direction = spans[1].get('title')
+        night_wind_direction = spans[2].get('title')
+        wind_scale = win.find('i').text
+    tem = target_weather.find(class_='tem')
+    temp_text = tem.get_text()
+    high_and_low = temp_text.split('/')
+    high = extract_number(high_and_low[0])
+    low = extract_number(high_and_low[1])
+
+    return {
+        'maxTemperature': high,
+        'minTemperature': low,
+        'windScale': wind_scale,
+        'dayWindDirection': day_wind_direction,
+        'nightWindDirection': night_wind_direction
+    }
+
+
+def get_large_n_weather(city: str, n=20):
+    city_id = resolve_city_id(city)
+    target_url = f"https://www.weather.com.cn/weather40d/{city_id}.shtml"
+    home = requests.get(target_url, headers=headers)
+    home.raise_for_status()
+    home.encoding = 'utf-8'
+    soup = BeautifulSoup(home.text, "html.parser")
+    table = soup.find('table', id='table')
+    today = datetime.datetime.now()
+    target_day = today + datetime.timedelta(days=n)
+    year = target_day.strftime("%Y")
+    month = target_day.strftime("%Y%m")
+    # 获取到当前时间戳
+    timestamp = round(datetime.datetime.timestamp(today) * 1000)
+    target_url = f"https://d1.weather.com.cn/calendar_new/{year}/{city_id}_{month}.html?_={timestamp}"
+    response = requests.get(target_url, headers=headers)
+    response.raise_for_status()
+    response.encoding = 'utf-8'
+    result = extract_pattern(response.text, r'var\s+[\w\_]+\s*=\s*([\[{]?.*[}\]]?)\s*;?', group_index=1)
+    target_date = target_day.strftime("%Y%m%d")
+    for day_info in json.loads(result):
+        if target_date == day_info['date']:
+            target_day_info = day_info
+            break
+    target_day_info.update({'maxTemperature': target_day_info['max']})
+    target_day_info.update({'minTemperature': target_day_info['min']})
+    target_day_info.update({'description': target_day_info['w1']})
+    target_day_info.update({'windScale': target_day_info['wd1']})
+    target_day_info.update({'rainPossible': target_day_info['hgl']})
+    return target_day_info
 
 
 
-def extract_pattern(text:str, pattern, single=True, dictable=False):
+def extract_pattern(text:str, pattern, single=True, dictable=False, group_index=0):
     """
     从字符串中根据正则表达式pattern提取出对应子串
     single为True时返回子串, False 返回子串列表迭代器
@@ -207,10 +350,10 @@ def extract_pattern(text:str, pattern, single=True, dictable=False):
     if dictable:
         return next(ret).groupdict() if single else map(lambda x: x.groupdict(), ret)
     else:
-        return next(ret).group(0) if single else map(lambda x: x.group(0), ret)
+        return next(ret).group(group_index) if single else map(lambda x: x.group(group_index), ret)
 
 def extract_number(text:str, single=True):
-    return float(extract_pattern(text, re.compile('\-?\d+(?:\.\d+)?')))
+    return float(extract_pattern(text, re.compile('\\-?\\d+(?:\\.\\d+)?')))
 
 
 def resolve_week_summary(city_detail):
@@ -219,7 +362,7 @@ def resolve_week_summary(city_detail):
     day_alias_list = ['今天', '明天', '后天', '大后天']
     for index, item in enumerate(summary_items):
         item = extract_pattern(item.prettify(), summary_pattern, dictable=True)
-        item['date'] = extract_pattern(item['daydesc'], '\d{1,2}\D\d{1,2}')
+        item['date'] = extract_pattern(item['daydesc'], r'\d{1,2}\D\d{1,2}')
         day_alias = list(extract_pattern(item['daydesc'], '(?:星期|周)[一二三四五六日]', single=False))
         if index < len(day_alias_list):
             day_alias.append(day_alias_list[index])
@@ -275,7 +418,7 @@ def resolve_week_detail(city_detail, summarys):
                     # 判断时间是否是最新的时间
                     # 这里是时间参数
                     if title[0] == 'time':
-                        current_hour = extract_pattern(td_value, '\d{1,2}(?=:)')
+                        current_hour = extract_pattern(td_value, r'\d{1,2}(?=:)')
                         if int(current_hour) < 8:
                             # print(f"开始处理时间 {summarys[index]['date']}, time: {td_value}")
                             delta = 1
@@ -356,27 +499,19 @@ def get_weather(city_name: str):
 
 
 if __name__ == '__main__':
-    home = get_home(home_url)
+    # home = get_home(home_url)
 
-    target_city_name = '北京(Beijing)'
+    # target_city_name = '北京(Beijing)'
     # target_city = next(filter(lambda item: item.text==target_city_name, get_cities(home)))
     # print(target_city, target_city['href'], resolve_city_id(target_city), build_city_url(target_city))
     # print(get_now_weather(resolve_city_id(target_city)))
 
     # print(list(extract_pattern('123131jjjj1213i333i1', '\d+', single=False)))
     # resolve_week_summary(get_home(build_city_url(target_city)))
-    ret = json.dumps(get_weather(target_city_name), indent=2, \
-          ensure_ascii=False)
-    from jsonschema import Draft7Validator, exceptions
-    print(ret)
-    # 使用 Draft7Validator 校验数据
-    try:
-        # 创建 Draft7Validator 对象
-        validator = Draft7Validator(schema)
-
-        # 校验 JSON 数据
-        # validator.validate(ret)
-        validator.validate(get_weather(target_city_name))
-        print("数据符合 JSON Schema！")
-    except exceptions.ValidationError as e:
-        print(f"校验失败: {e.message}")
+    # ret = json.dumps(get_weather(target_city_name), indent=2, \
+          # ensure_ascii=False)
+    city_id = resolve_city_id('北京')
+    print(get_now_weather(city_id))
+    print(get_n_weather('北京', n=4))
+    print(get_n_weather('北京', n=10))
+    print(get_n_weather('北京', n=23))

@@ -1,6 +1,6 @@
 # 轻量级的天气信息查询工具
 只需要安装就可以使用
-数据来源于[中国气象网](https://weather.cma.cn/web/weather/54511.html)
+数据来源于[中国气象网](https://www.weather.com.cn/)
 
 * 不要注册
 * 不要手机号
@@ -28,7 +28,7 @@ weather_agent_tool = Tool(
 
 
 # 初始化 LLM
-llm = OllamaLLM(model="llama3")
+llm = OllamaLLM(model="deepseek-r1:14b")
 
 
 # 定义 agent
