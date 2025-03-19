@@ -215,7 +215,8 @@ def resolve_city_id(city: str):
     return current_ref.split('~')[0]
 
 
-def get_now_weather(city_id):
+def get_now_weather(city_name):
+    city_id = resolve_city_id(city_name)
     target_url = f'https://www.weather.com.cn/weather1d/{city_id}.shtml#input'
     home = requests.get(target_url, headers=headers)
     home.raise_for_status()
@@ -510,8 +511,8 @@ if __name__ == '__main__':
     # resolve_week_summary(get_home(build_city_url(target_city)))
     # ret = json.dumps(get_weather(target_city_name), indent=2, \
           # ensure_ascii=False)
-    city_id = resolve_city_id('北京')
-    print(get_now_weather(city_id))
+    # city_id = resolve_city_id('北京')
+    print(get_now_weather('北京'))
     print(get_n_weather('北京', n=4))
     print(get_n_weather('北京', n=10))
     print(get_n_weather('北京', n=23))
