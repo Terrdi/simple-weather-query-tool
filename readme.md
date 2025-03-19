@@ -17,13 +17,18 @@ pip install git+https://github.com/Terrdi/simple-weather-query-tool.git
 from langchain_ollama.llms import OllamaLLM
 from langchain.agents import initialize_agent
 from langchain.tools import Tool
-from weather_tool import weather_tool
+from weather_tool import get_weather, get_n_weather
 
 # 定义获取天气的工具
-weather_agent_tool = Tool(
+weather_agent_tool = Tool.from_function(
     name="GetWeather",
-    func=weather_tool,
-    description="获取指定城市的天气信息，参数是城市名称, 返回值中_schema包含字段描述"
+    func=get_weather,
+    description="当你需要查询自己的天气时，调用该函数, 参数是地点名称"
+)
+weather_n_days_tool = Tool.from_function(
+    name="GetNWeather",
+    func=get_n_weather,
+    description="获取指定城市几天后的天气信息，第一个参数是城市名称, 第二个参数是天数"
 )
 
 
@@ -33,7 +38,7 @@ llm = OllamaLLM(model="deepseek-r1:14b")
 
 # 定义 agent
 agent = initialize_agent(
-    tools=[weather_tool],  # 使用自定义工具
+    tools=[weather_agent_tool],  # 使用自定义工具
     llm=llm,
     agent_type="zero-shot-react-description",
     verbose=True,

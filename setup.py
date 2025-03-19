@@ -7,7 +7,7 @@ def read_requirements(file_name):
 
 
 setup(name='weather_tool',
-      version='0.1',
+      version='0.2',
       description='the simple tool to query weather',
       classifiers=[
           'Programming Language :: Python',
