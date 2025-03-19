@@ -200,7 +200,10 @@ def resolve_city_id(city: str):
     response.raise_for_status()
     response_text = response.text
     # 从中提取出调用的参数
-    result_text = extract_pattern(response_text, r'[\w_]*\((\[.+\])\)', group_index=1)
+    try:
+        result_text = extract_pattern(response_text, r'[\w_]*\((\[.+\])\)', group_index=1)
+    except StopIteration:
+        raise ValueError(f'无效的城市: {city}')
     results = json.loads(result_text)
     # 从results找到匹配程度最高的一组数据
     current_matched = 0
@@ -216,14 +219,17 @@ def resolve_city_id(city: str):
 
 
 def get_now_weather(city_name):
-    city_id = resolve_city_id(city_name)
+    # print(f'当前的参数: {city_name}')
+    # city_name = extract_pattern(city_name, r'[\u4e00-\u9fa5\w\s]+')
+    city_id = resolve_city_id(city_name.strip())
+    # print(f"获取到的城市编号: {city_id}")
     target_url = f'https://www.weather.com.cn/weather1d/{city_id}.shtml#input'
     home = requests.get(target_url, headers=headers)
     home.raise_for_status()
     home.encoding = 'utf-8'
     soup = BeautifulSoup(home.text, "html.parser")
-    today_weather = soup.find(id='today')
-    day_and_night = today_weather.find(class_='clearfix')
+    today_weather = soup.find('div', id='today')
+    day_and_night = today_weather.find('ul', class_='clearfix')
     day_and_night = day_and_night.find_all('li', recursive=False)
     day = day_and_night[0]
     night = day_and_night[1]
